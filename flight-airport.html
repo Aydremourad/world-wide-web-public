@@ -1,0 +1,303 @@
+<!doctype html>
+<html manifest="cache.manifest">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=320, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0">
+<title>Airport Board</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.boardbox{
+background:#fff;
+border:2px solid #78818a;
+-webkit-border-radius:10px;
+border-radius:10px;
+padding:9px;
+margin-bottom:10px;
+-webkit-box-shadow:0 1px 1px rgba(0,0,0,.18),inset 0 1px 0 #fff;
+box-shadow:0 1px 1px rgba(0,0,0,.18),inset 0 1px 0 #fff
+}
+.boardbox h1{font-size:20px;line-height:23px;margin:0 0 4px}
+.boardbox p{margin:3px 0;font-size:12px;line-height:17px;color:#444}
+.boardtabs{
+height:36px;
+margin:0 0 10px;
+padding:2px;
+background:#78818a;
+border:0;
+-webkit-border-radius:10px;
+border-radius:10px;
+white-space:nowrap;
+overflow:hidden
+}
+.boardtabs a{
+display:block;
+float:left;
+width:50%;
+height:32px;
+line-height:32px;
+text-align:center;
+font-size:13px;
+font-weight:bold;
+text-decoration:none;
+color:#385487;
+background:#f7f7f7;
+text-shadow:0 1px 0 #fff
+}
+.boardtabs a:first-child{
+-webkit-border-top-left-radius:8px;
+-webkit-border-bottom-left-radius:8px;
+border-top-left-radius:8px;
+border-bottom-left-radius:8px;
+border-right:1px solid #c5cbd1
+}
+.boardtabs a:last-child{
+-webkit-border-top-right-radius:8px;
+-webkit-border-bottom-right-radius:8px;
+border-top-right-radius:8px;
+border-bottom-right-radius:8px
+}
+.boardtabs a.sel{
+color:#fff;
+background:#3f79ad;
+background:-webkit-gradient(linear,left top,left bottom,from(#6da0cb),to(#2d699c));
+text-shadow:0 -1px 0 #31536e
+}
+.flightlist{
+background:#fff;
+border:2px solid #78818a;
+-webkit-border-radius:10px;
+border-radius:10px;
+overflow:hidden;
+-webkit-box-shadow:0 1px 1px rgba(0,0,0,.16);
+box-shadow:0 1px 1px rgba(0,0,0,.16)
+}
+.flightrow{
+padding:9px 10px 8px;
+border-bottom:1px solid #cfd3d7;
+background:#fff
+}
+.flightrow:first-child{
+-webkit-border-top-left-radius:8px;
+-webkit-border-top-right-radius:8px;
+border-top-left-radius:8px;
+border-top-right-radius:8px
+}
+.flightrow:last-child{
+border-bottom:0;
+-webkit-border-bottom-left-radius:8px;
+-webkit-border-bottom-right-radius:8px;
+border-bottom-left-radius:8px;
+border-bottom-right-radius:8px
+}
+.flighttop{height:21px;line-height:21px;white-space:nowrap}
+.ftime{float:left;font-size:17px;font-weight:bold;color:#222}
+.fnum{float:right;font-size:14px;font-weight:bold;color:#385487}
+.froute{clear:both;font-size:13px;font-weight:bold;color:#222;line-height:17px;padding-top:2px}
+.fcity{font-weight:normal;color:#555}
+.fmeta{font-size:11px;color:#666;line-height:15px;margin-top:2px}
+.fop{font-size:10px;color:#888;line-height:13px;margin-top:1px}
+.loadingrow,.emptyrow{
+padding:18px 10px;
+font-size:13px;
+line-height:18px;
+text-align:center;
+color:#666;
+background:#fff;
+-webkit-border-radius:8px;
+border-radius:8px
+}
+.statusline{
+font-size:10px;
+line-height:14px;
+color:#66717c;
+text-align:center;
+padding:0 4px 7px;
+text-shadow:0 1px 0 #fff
+}
+.fallback{margin-top:10px}
+</style>
+<script>
+var airport='';
+var boardType='arrivals';
+var destination='';
+var flights=[];
+var pending=0;
+var requestNumber=0;
+
+function getParam(name){
+ var s=window.location.search.substring(1).split('&');
+ var i,p;
+ for(i=0;i<s.length;i++){
+  p=s[i].split('=');
+  if(p[0]==name){return decodeURIComponent((p[1]||'').replace(/\+/g,' '));}
+ }
+ return '';
+}
+function cleanAirport(v){
+ v=(v||'').replace(/\s+/g,'').toUpperCase();
+ if(v.length==4 && v.charAt(0)=='K'){v=v.substring(1);}
+ return v;
+}
+function parseJSONOld(s){
+ if(window.JSON && JSON.parse){return JSON.parse(s);}
+ return eval('('+s+')');
+}
+function esc(s){
+ s=''+(s==null?'':s);
+ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function pad2(n){return n<10?'0'+n:''+n;}
+
+function showBoard(type){
+ boardType=(type=='departures')?'departures':'arrivals';
+ document.getElementById('arrtab').className=(boardType=='arrivals')?'sel':'';
+ document.getElementById('deptab').className=(boardType=='departures')?'sel':'';
+ if(destination && boardType!='departures'){destination='';}
+ loadBoard();
+ return false;
+}
+function loadBoard(){
+ requestNumber++;
+ var id=requestNumber;
+ flights=[];
+ pending=2;
+ document.getElementById('flightlist').innerHTML='<div class="loadingrow">Loading '+esc(airport)+' '+esc(boardType)+'...</div>';
+ document.getElementById('statusline').innerHTML='Loading today\'s flight board';
+ var d=new Date();
+ loadPart(0,id,d);
+ loadPart(12,id,d);
+ window.setTimeout(function(){
+  if(id==requestNumber && pending>0){pending=0;renderBoard();}
+ },15000);
+}
+function loadPart(hour,id,d){
+ var kind=(boardType=='departures')?'dep':'arr';
+ var target='https://www.flightstats.com/v2/api-next/flight-tracker/'+kind+'/'+airport+'/'+d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate()+'/'+hour+'?numHours=12';
+ var cb='wwFlightCb'+id+'_'+hour;
+ window[cb]=function(data){
+  if(id!=requestNumber){return;}
+  receivePart(data);
+  try{window[cb]=null;}catch(e){}
+ };
+ var src='https://api.allorigins.win/get?callback='+cb+'&url='+encodeURIComponent(target);
+ var s=document.createElement('script');
+ s.type='text/javascript';
+ s.src=src;
+ s.onerror=function(){
+  if(id==requestNumber){partFinished();}
+ };
+ document.getElementsByTagName('head')[0].appendChild(s);
+}
+function receivePart(data){
+ try{
+  var obj=data;
+  if(data && typeof data.contents=='string'){obj=parseJSONOld(data.contents);}
+  if(obj && obj.data && obj.data.flights){
+   var a=obj.data.flights;
+   var i;
+   for(i=0;i<a.length;i++){flights[flights.length]=a[i];}
+  }
+ }catch(e){}
+ partFinished();
+}
+function partFinished(){
+ if(pending>0){pending--;}
+ if(pending<=0){renderBoard();}
+}
+function sortFlights(){
+ flights.sort(function(a,b){
+  var x=a.sortTime||'',y=b.sortTime||'';
+  if(x<y){return -1;} if(x>y){return 1;} return 0;
+ });
+}
+function renderBoard(){
+ var list=[];
+ var i,f,other;
+ sortFlights();
+ for(i=0;i<flights.length;i++){
+  f=flights[i];
+  other=(f.airport&&f.airport.fs)?cleanAirport(f.airport.fs):'';
+  if(destination && other!=destination){continue;}
+  list[list.length]=f;
+ }
+ var title=airport+' '+(boardType=='departures'?'Departures':'Arrivals');
+ if(destination){title=airport+' to '+destination;}
+ document.getElementById('airportname').innerHTML=esc(title);
+ var h='';
+ for(i=0;i<list.length;i++){
+  f=list[i];
+  var c=f.carrier||{};
+  var ap=f.airport||{};
+  var dep=f.departureTime||{};
+  var arr=f.arrivalTime||{};
+  var primary=(boardType=='departures')?(dep.timeAMPM||dep.time24||'--'):(arr.timeAMPM||arr.time24||'--');
+  var secondary=(boardType=='departures')?(arr.timeAMPM||arr.time24||'--'):(dep.timeAMPM||dep.time24||'--');
+  var dir=(boardType=='departures')?'to':'from';
+  var secondaryLabel=(boardType=='departures')?'Arrives':'Departs';
+  var number=(c.fs||'')+(c.flightNumber||'');
+  h+='<div class="flightrow">';
+  h+='<div class="flighttop"><span class="ftime">'+esc(primary)+'</span><span class="fnum">'+esc(number)+'</span></div>';
+  h+='<div class="froute">'+dir+' '+esc(ap.fs||'')+' <span class="fcity">'+esc(ap.city||'')+'</span></div>';
+  h+='<div class="fmeta">'+esc(secondaryLabel)+' '+esc(secondary);
+  if(c.name){h+=' &middot; '+esc(c.name);}
+  h+='</div>';
+  if(f.operatedBy){h+='<div class="fop">'+esc(f.operatedBy)+'</div>';}
+  h+='</div>';
+ }
+ if(!h){
+  h='<div class="emptyrow">No '+esc(destination?airport+' to '+destination:boardType)+' flights were found for today.</div>';
+ }
+ document.getElementById('flightlist').innerHTML=h;
+ document.getElementById('statusline').innerHTML=list.length+' flight'+(list.length==1?'':'s')+' shown &middot; Today';
+}
+function init(){
+ airport=cleanAirport(getParam('airport'));
+ destination=cleanAirport(getParam('dest'));
+ var type=getParam('type');
+ if(type=='departures' || destination){boardType='departures';}
+ if(!airport.match(/^[A-Z0-9]{3}$/)){
+  document.getElementById('titlecode').innerHTML='Airport';
+  document.getElementById('airportname').innerHTML='Airport Board';
+  document.getElementById('flightlist').innerHTML='<div class="emptyrow">Airport code not recognized. Return to Flight Track and enter a code such as FWA.</div>';
+  return;
+ }
+ document.title=airport+' Airport Board';
+ document.getElementById('titlecode').innerHTML=airport+' Airport Board';
+ document.getElementById('arrtab').className=(boardType=='arrivals')?'sel':'';
+ document.getElementById('deptab').className=(boardType=='departures')?'sel':'';
+ if(destination){
+  document.getElementById('routebox').style.display='block';
+  document.getElementById('routebox').innerHTML='<b>'+esc(airport)+' to '+esc(destination)+'</b><p>Direct departures matching this route.</p>';
+ }
+ loadBoard();
+}
+</script>
+</head>
+<body onload="init()">
+<div class="page">
+<div class="top"><a class="back" href="index.html">WWW</a><span id="titlecode">Airport Board</span></div>
+<div class="content">
+
+<div class="boardbox">
+<h1 id="airportname">Airport Board</h1>
+<p>Live flight information in a compact board.</p>
+</div>
+
+<div id="routebox" class="boardbox" style="display:none"></div>
+
+<div class="boardtabs">
+<a id="arrtab" class="sel" href="#" onclick="return showBoard('arrivals')">Arrivals</a><a id="deptab" href="#" onclick="return showBoard('departures')">Departures</a>
+</div>
+
+<div id="statusline" class="statusline">Loading today's flight board</div>
+<div id="flightlist" class="flightlist"><div class="loadingrow">Loading...</div></div>
+
+<div class="group fallback">
+<div class="list"><a href="flight-track.html">New Flight Search</a></div>
+</div>
+
+</div>
+<div class="footer">Flight Track</div>
+</div>
+<script src="webapp.js"></script></body>
+</html>

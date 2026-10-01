@@ -1,0 +1,21 @@
+CACHE MANIFEST
+# World Wide Web public cache v1
+
+CACHE:
+index.html
+style.css
+webapp.js
+google.html
+wikipedia.html
+wikipedia-search.html
+wikipedia-article.html
+wikipedia-recent.html
+news.html
+old-museum.html
+flight-track.html
+flight-airport.html
+old-search.html
+apple-touch-icon.png
+
+NETWORK:
+*
