@@ -1,5 +1,5 @@
 CACHE MANIFEST
-# World Wide Web public cache v5
+# World Wide Web public cache v6
 
 CACHE:
 index.html
@@ -12,8 +12,6 @@ wikipedia-article.html
 wikipedia-recent.html
 news.html
 old-museum.html
-flight-track.html
-flight-airport.html
 old-search.html
 apple-touch-icon.png
 
